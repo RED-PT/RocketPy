@@ -7,6 +7,7 @@ from rocketpy.control import _Controller
 from rocketpy.mathutils.vector_matrix import Vector
 from rocketpy.motors.empty_motor import EmptyMotor
 from rocketpy.motors.motor import GenericMotor, Motor
+from rocketpy.motors.hybrid_motor import HybridMotor
 from rocketpy.motors.solid_motor import SolidMotor
 from rocketpy.rocket.aero_surface import (
     AirBrakes,
@@ -33,6 +34,7 @@ from .stochastic_aero_surfaces import (
 from .stochastic_model import StochasticModel
 from .stochastic_parachute import StochasticParachute
 from .stochastic_solid_motor import StochasticSolidMotor
+from .stochastic_hybrid_motor import StochasticHybridMotor
 
 # TODO: Private methods of this class should be double underscored
 
@@ -247,6 +249,8 @@ class StochasticRocket(StochasticModel):
                 motor = StochasticSolidMotor(solid_motor=motor)
             elif isinstance(motor, GenericMotor):
                 motor = StochasticGenericMotor(generic_motor=motor)
+            elif isinstance(motor, HybridMotor):
+                motor = StochasticHybridMotor(hybrid_motor=motor)
         self.__components_map[motor] = position
         self.motors.add(motor, self._validate_position(motor, position))
 

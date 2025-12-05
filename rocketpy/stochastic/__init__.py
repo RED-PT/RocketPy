@@ -21,3 +21,5 @@ from .stochastic_model import StochasticModel
 from .stochastic_parachute import StochasticParachute
 from .stochastic_rocket import StochasticRocket
 from .stochastic_solid_motor import StochasticSolidMotor
+from .stochastic_hybrid_motor import StochasticHybridMotor
+from .stochastic_tank import StochasticCylindricalTank, StochasticMassFlowRateBasedTank
