@@ -1,12 +1,74 @@
+"""Defines the StochasticHybridMotor class."""
+
+from random import choice
+
+from rocketpy.mathutils.function import Function
+from rocketpy.mathutils.vector_matrix import Vector
 from rocketpy.motors import HybridMotor, MassFlowRateBasedTank
+
 from .stochastic_motor_model import StochasticMotorModel
 from .stochastic_tank import StochasticMassFlowRateBasedTank
-from random import choice
-from rocketpy.mathutils.vector_matrix import Vector
-from rocketpy.mathutils.function import Function
 
 
 class StochasticHybridMotor(StochasticMotorModel):
+    """A Stochastic Hybrid Motor class that inherits from StochasticMotorModel.
+
+    See Also
+    --------
+    :ref:`stochastic_model` and :class:`HybridMotor <rocketpy.motors.HybridMotor>`
+
+    Attributes
+    ----------
+    object : HybridMotor
+        HybridMotor object to be used for validation.
+    thrust_source : int, float, tuple, list
+        Thrust source file path or list of paths.
+    total_impulse : int, float, tuple, list
+        Total impulse of the motor in Ns.
+    burn_start_time : int, float, tuple, list
+        Burn start time of the motor in seconds.
+    burn_out_time : int, float, tuple, list
+        Burn out time of the motor in seconds.
+    dry_mass : int, float, tuple, list
+        Dry mass of the motor in kg.
+    dry_I_11 : int, float, tuple, list
+        Moment of inertia in the x direction in kg*m^2.
+    dry_I_22 : int, float, tuple, list
+        Moment of inertia in the y direction in kg*m^2.
+    dry_I_33 : int, float, tuple, list
+        Moment of inertia in the z direction in kg*m^2.
+    dry_I_12 : int, float, tuple, list
+        Product of inertia in kg*m^2.
+    dry_I_13 : int, float, tuple, list
+        Product of inertia in kg*m^2.
+    dry_I_23 : int, float, tuple, list
+        Product of inertia in kg*m^2.
+    nozzle_radius : int, float, tuple, list
+        Nozzle radius of the motor in meters.
+    grain_number : int, float, tuple, list
+        Number of grains in the motor.
+    grain_density : int, float, tuple, list
+        Density of the grain in kg/m^3.
+    grain_outer_radius : int, float, tuple, list
+        Outer radius of the grain in meters.
+    grain_initial_inner_radius : int, float, tuple, list
+        Initial inner radius of the grain in meters.
+    grain_initial_height : int, float, tuple, list
+        Initial height of the grain in meters.
+    grain_separation : int, float, tuple, list
+        Separation between grains in meters.
+    grains_center_of_mass_position : int, float, tuple, list
+        Position of the center of mass of the grains in meters.
+    center_of_dry_mass_position : int, float, tuple, list
+        Position of the center of dry mass in meters.
+    nozzle_position : int, float, tuple, list
+        Position of the nozzle in meters.
+    throat_radius : int, float, tuple, list
+        Throat radius of the motor in meters.
+    tanks : list
+        List of StochasticMassFlowRateBasedTank objects. This cannot be
+        randomized directly but tanks can be added via add_tank method.
+    """
 
     # pylint: disable=too-many-arguments
     def __init__(
@@ -33,8 +95,63 @@ class StochasticHybridMotor(StochasticMotorModel):
         grains_center_of_mass_position=None,
         center_of_dry_mass_position=None,
         nozzle_position=None,
-        throat_radius=None
+        throat_radius=None,
     ):
+        """Initializes the Stochastic Hybrid Motor class.
+
+        See Also
+        --------
+        :ref:`stochastic_model`
+
+        Parameters
+        ----------
+        hybrid_motor : HybridMotor
+            HybridMotor object to be used for validation.
+        thrust_source : int, float, tuple, list, optional
+            Thrust source file path or list of paths.
+        total_impulse : int, float, tuple, list, optional
+            Total impulse of the motor in Ns.
+        burn_start_time : int, float, tuple, list, optional
+            Burn start time of the motor in seconds.
+        burn_out_time : int, float, tuple, list, optional
+            Burn out time of the motor in seconds.
+        dry_mass : int, float, tuple, list, optional
+            Dry mass of the motor in kg.
+        dry_inertia_11 : int, float, tuple, list, optional
+            Moment of inertia in the x direction in kg*m^2.
+        dry_inertia_22 : int, float, tuple, list, optional
+            Moment of inertia in the y direction in kg*m^2.
+        dry_inertia_33 : int, float, tuple, list, optional
+            Moment of inertia in the z direction in kg*m^2.
+        dry_inertia_12 : int, float, tuple, list, optional
+            Product of inertia in kg*m^2.
+        dry_inertia_13 : int, float, tuple, list, optional
+            Product of inertia in kg*m^2.
+        dry_inertia_23 : int, float, tuple, list, optional
+            Product of inertia in kg*m^2.
+        nozzle_radius : int, float, tuple, list, optional
+            Nozzle radius of the motor in meters.
+        grain_number : int, float, tuple, list, optional
+            Number of grains in the motor.
+        grain_density : int, float, tuple, list, optional
+            Density of the grain in kg/m^3.
+        grain_outer_radius : int, float, tuple, list, optional
+            Outer radius of the grain in meters.
+        grain_initial_inner_radius : int, float, tuple, list, optional
+            Initial inner radius of the grain in meters.
+        grain_initial_height : int, float, tuple, list, optional
+            Initial height of the grain in meters.
+        grain_separation : int, float, tuple, list, optional
+            Separation between grains in meters.
+        grains_center_of_mass_position : int, float, tuple, list, optional
+            Position of the center of mass of the grains in meters.
+        center_of_dry_mass_position : int, float, tuple, list, optional
+            Position of the center of dry mass in meters.
+        nozzle_position : int, float, tuple, list, optional
+            Position of the nozzle in meters.
+        throat_radius : int, float, tuple, list, optional
+            Throat radius of the motor in meters.
+        """
         self.tanks = []
         self.__components_map = {}
 
@@ -67,10 +184,10 @@ class StochasticHybridMotor(StochasticMotorModel):
         )
     
     def dict_generator(self):
-        """Special generator for the hybrid motor class that yields a dictionary
-        with the randomly generated input arguments. This overrides the base
-        dict_generator to exclude nested stochastic tank objects from being
-        stored in last_rnd_dict, preventing JSON serialization issues.
+        """Special generator for the hybrid motor class that yields a
+        dictionary with the randomly generated input arguments. This overrides
+        the base dict_generator to exclude nested stochastic tank objects from
+        being stored in last_rnd_dict, preventing JSON serialization issues.
 
         Yields
         ------
@@ -78,15 +195,26 @@ class StochasticHybridMotor(StochasticMotorModel):
             Dictionary with the randomly generated input arguments.
         """
         generated_dict = next(super().dict_generator())
-        # Replace tanks list with empty list to avoid storing StochasticTank objects
+        # Replace tanks list with empty list to avoid storing
+        # StochasticTank objects, which would cause JSON serialization
+        # errors in MonteCarlo
         generated_dict["tanks"] = []
-        # Also clear the internal components map to avoid storing stochastic objects
+        # Also clear the internal components map to avoid storing stochastic
+        # objects
         if "_StochasticHybridMotor__components_map" in generated_dict:
             generated_dict["_StochasticHybridMotor__components_map"] = {}
         self.last_rnd_dict = generated_dict
         yield generated_dict
-    
+
     def create_object(self):
+        """Creates and returns a HybridMotor object from the randomly
+        generated input arguments.
+
+        Returns
+        -------
+        HybridMotor
+            HybridMotor object with the randomly generated input arguments.
+        """
 
         generated_dict = next(self.dict_generator())
         
@@ -342,16 +470,42 @@ class StochasticHybridMotor(StochasticMotorModel):
 
         return hybrid_motor
 
-
     def add_tank(self, tank, position):
+        """Add a tank to the stochastic hybrid motor.
 
-        if not isinstance(tank, (StochasticMassFlowRateBasedTank, MassFlowRateBasedTank)):
+        Parameters
+        ----------
+        tank : StochasticMassFlowRateBasedTank, MassFlowRateBasedTank
+            Tank object to be added to the motor. If a MassFlowRateBasedTank
+            is provided, it will be converted to a StochasticMassFlowRateBasedTank
+            automatically.
+        position : int, float, tuple, list
+            Position of the tank in meters relative to the motor's coordinate
+            system origin.
+
+        Returns
+        -------
+        None
+
+        Raises
+        ------
+        AssertionError
+            If tank is not of type MassFlowRateBasedTank or
+            StochasticMassFlowRateBasedTank.
+        """
+
+        if not isinstance(
+            tank, (StochasticMassFlowRateBasedTank, MassFlowRateBasedTank)
+        ):
             raise AssertionError(
-                "`tank` must be of MassFlowRateBasedtank or StochasticMassFlowRateBasedtank type"
+                "`tank` must be of MassFlowRateBasedTank or "
+                "StochasticMassFlowRateBasedTank type"
             )
         if isinstance(tank, MassFlowRateBasedTank):
-            tank = StochasticMassFlowRateBasedTank(mass_flow_rate_based_tank=tank)
-        # store the provided position on the stochastic tank object so that
+            tank = StochasticMassFlowRateBasedTank(
+                mass_flow_rate_based_tank=tank
+            )
+        # Store the provided position on the stochastic tank object so that
         # downstream code (e.g. _create_tank) can read it via
         # `stochastic_tank.position`.
         try:
@@ -364,15 +518,27 @@ class StochasticHybridMotor(StochasticMotorModel):
         self.tanks.append({"tank": tank, "position": position})
 
     def _randomize_position(self, position):
-        """Randomize a position provided as a tuple or list."""
+        """Randomize a position provided as a tuple or list.
+        
+        Parameters
+        ----------
+        position : tuple, list, int, float
+            Position to be randomized.
+            
+        Returns
+        -------
+        int, float
+            Randomized position value.
+        """
         if isinstance(position, tuple):
             if isinstance(position[0], Vector):
-                # TODO implement randomization for X and Y positions
+                # TODO: implement randomization for X and Y positions
                 return position[-1](position[0].z, position[1])
             return position[-1](position[0], position[1])
         elif isinstance(position, list):
             return choice(position) if position else position
-        
+        return position
+
     def _validate_position(self, validated_object, position):
         """Validate the position argument.
 
@@ -423,12 +589,22 @@ class StochasticHybridMotor(StochasticMotorModel):
             raise AssertionError("`position` must be a tuple, list, int, or float")
 
     def _create_tank(self, stochastic_tank):
+        """Create a tank object from a stochastic tank.
+        
+        Parameters
+        ----------
+        stochastic_tank : StochasticMassFlowRateBasedTank
+            Stochastic tank object to create a tank from.
+            
+        Returns
+        -------
+        tuple
+            Tuple containing the created tank and its randomized position.
+        """
         tank = stochastic_tank.create_object()
-        position_rnd = self._randomize_position(
-           stochastic_tank.position
-        )
+        position_rnd = self._randomize_position(stochastic_tank.position)
         return tank, position_rnd
-    
+
     def _create_get_position(self, validated_object):
         """Create a function to get the nominal position from an object.
 
@@ -443,8 +619,7 @@ class StochasticHybridMotor(StochasticMotorModel):
             Function to get the nominal position from an object. The function
             must receive two arguments.
         """
-
-        # try to get position from object
+        # Try to get position from object
         error_msg = (
             "`position` standard deviation was provided but the motor does "
             f"not have the same {validated_object.obj.__class__.__name__} "
@@ -453,16 +628,14 @@ class StochasticHybridMotor(StochasticMotorModel):
 
         if isinstance(validated_object, StochasticMassFlowRateBasedTank):
             if isinstance(validated_object.obj, MassFlowRateBasedTank):
-                for tank, position in self.__components_map.items():
-                    
-                    def get_tank_position(self_object, _):
 
-                        for tank, position in self_object.positioned_tanks:
-                            if tank == validated_object.obj:
-                                return position
-                        raise AssertionError(error_msg)
-                    
-                    return  get_tank_position
+                def get_tank_position(self_object, _):
+                    for tank, position in self_object.positioned_tanks:
+                        if tank == validated_object.obj:
+                            return position
+                    raise AssertionError(error_msg)
+
+                return get_tank_position
 
 
 
