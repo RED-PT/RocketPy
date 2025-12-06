@@ -405,13 +405,37 @@ class CylindricalTank(TankGeometry):
         geometry_dict = geometry_dict or {}
         super().__init__(geometry_dict)
         self.__input_radius = radius
-        self.height = height
+        self.__input_height = height
         self.has_caps = False
         if spherical_caps:
             self.add_geometry((-height / 2 + radius, height / 2 - radius), radius)
             self.add_spherical_caps()
         else:
             self.add_geometry((-height / 2, height / 2), radius)
+
+    @property
+    def input_radius(self):
+        """Input radius of the cylindrical tank in meters (the constant value
+        used to construct the tank, not the radius function).
+        
+        Returns
+        -------
+        float
+            Input radius of the cylindrical tank in meters.
+        """
+        return self.__input_radius
+
+    @property
+    def input_height(self):
+        """Input height of the cylindrical tank in meters (the constant value
+        used to construct the tank).
+        
+        Returns
+        -------
+        float
+            Input height of the cylindrical tank in meters.
+        """
+        return self.__input_height
 
     def add_spherical_caps(self):
         """
@@ -420,16 +444,10 @@ class CylindricalTank(TankGeometry):
         part. The height is not modified, meaning that the total volume of
         the tank will decrease.
         """
-        print(
-            "Warning: Adding spherical caps to the tank will not modify the "
-            + f"total height of the tank {self.height} m. "
-            + "Its cylindrical portion height will be reduced to "
-            + f"{self.height - 2 * self.__input_radius} m."
-        )
 
         if not self.has_caps:
             radius = self.__input_radius
-            height = self.height
+            height = self.__input_height
             bottom_cap_range = (-height / 2, -height / 2 + radius)
             upper_cap_range = (height / 2 - radius, height / 2)
 
@@ -447,8 +465,8 @@ class CylindricalTank(TankGeometry):
 
     def to_dict(self, **kwargs):
         data = {
-            "radius": self.__input_radius,
-            "height": self.height,
+            "radius": self.input_radius,
+            "height": self.input_height,
             "spherical_caps": self.has_caps,
         }
 

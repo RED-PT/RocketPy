@@ -950,6 +950,42 @@ class MassFlowRateBasedTank(Tank):
         """
         return self.net_liquid_flow_rate + self.net_gas_flow_rate
 
+    @property
+    def total_liquid_mass_flow(self):
+        """
+        Returns the total net liquid mass flow over the flux time period.
+        This is calculated as the integral of the net liquid flow rate over
+        the flux time (outflow - inflow), representing the total liquid mass
+        consumed.
+
+        Returns
+        -------
+        float
+            Total net liquid mass flow in kg. Positive values indicate net
+            outflow (consumption), negative values indicate net inflow.
+        """
+        return self.net_liquid_flow_rate.integral(
+            self.flux_time[0], self.flux_time[1]
+        )
+
+    @property
+    def total_gas_mass_flow(self):
+        """
+        Returns the total net gas mass flow over the flux time period.
+        This is calculated as the integral of the net gas flow rate over
+        the flux time (outflow - inflow), representing the total gas mass
+        consumed.
+
+        Returns
+        -------
+        float
+            Total net gas mass flow in kg. Positive values indicate net
+            outflow (consumption), negative values indicate net inflow.
+        """
+        return self.net_gas_flow_rate.integral(
+            self.flux_time[0], self.flux_time[1]
+        )
+
     @funcify_method("Time (s)", "Fluid Volume (m³)")
     def fluid_volume(self):
         """
