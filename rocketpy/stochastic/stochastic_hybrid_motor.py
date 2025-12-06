@@ -304,6 +304,8 @@ class StochasticHybridMotor(StochasticMotorModel):
             This approach evaluates each tank's properties at the given time,
             allowing complex step differentiation to work correctly while
             avoiding division by zero and NaN issues.
+            
+            Always returns a real scalar value suitable for ODE integration.
             """
             total_mass = 0
             mass_balance = 0
@@ -313,26 +315,43 @@ class StochasticHybridMotor(StochasticMotorModel):
                 tank_position = positioned_tank.get("position", 0)
                 
                 # Evaluate tank mass and center of mass at time t
-                if hasattr(tank.fluid_mass, '__call__'):
-                    tank_mass = tank.fluid_mass(t)
-                else:
-                    tank_mass = tank.fluid_mass
+                try:
+                    if hasattr(tank.fluid_mass, '__call__'):
+                        tank_mass = tank.fluid_mass(t)
+                    else:
+                        tank_mass = tank.fluid_mass
+                        
+                    if hasattr(tank.center_of_mass, '__call__'):
+                        tank_com = tank.center_of_mass(t)
+                    else:
+                        tank_com = tank.center_of_mass
                     
-                if hasattr(tank.center_of_mass, '__call__'):
-                    tank_com = tank.center_of_mass(t)
-                else:
-                    tank_com = tank.center_of_mass
-                
-                # Accumulate
-                if np.isfinite(tank_mass) and np.isfinite(tank_com):
-                    total_mass += tank_mass
-                    mass_balance += tank_mass * (tank_position + tank_com)
+                    # Convert to real scalar if complex (for complex step differentiation)
+                    if isinstance(tank_mass, complex):
+                        tank_mass = tank_mass.real
+                    if isinstance(tank_com, complex):
+                        tank_com = tank_com.real
+                    
+                    # Accumulate only if valid numbers
+                    if (tank_mass is not None and tank_com is not None and 
+                        np.isfinite(tank_mass) and np.isfinite(tank_com)):
+                        total_mass += float(tank_mass)
+                        mass_balance += float(tank_mass) * (float(tank_position) + float(tank_com))
+                except (TypeError, ValueError, AttributeError):
+                    # Skip this tank if evaluation fails
+                    continue
             
             # Safe division with fallback
-            if total_mass == 0 or not np.isfinite(total_mass):
-                return fallback_position
+            if total_mass == 0 or not np.isfinite(total_mass) or not np.isfinite(mass_balance):
+                return float(fallback_position)
+            
             result = mass_balance / total_mass
-            return result if np.isfinite(result) else fallback_position
+            
+            # Ensure we return a real scalar
+            if isinstance(result, complex):
+                result = result.real
+            
+            return float(result) if np.isfinite(result) else float(fallback_position)
             
         return Function(compute_center_of_mass)
 
@@ -373,48 +392,73 @@ class StochasticHybridMotor(StochasticMotorModel):
             This approach evaluates each component's properties at the given time,
             allowing complex step differentiation to work correctly while
             avoiding division by zero and NaN issues.
+            
+            Always returns a real scalar value suitable for ODE integration.
             """
-            # Get solid propellant mass and center of mass
-            if hasattr(solid.propellant_mass, '__call__'):
-                solid_mass = solid.propellant_mass(t)
-            else:
-                solid_mass = solid.propellant_mass
-                
-            if hasattr(solid.center_of_propellant_mass, '__call__'):
-                solid_com = solid.center_of_propellant_mass(t)
-            else:
-                solid_com = solid.center_of_propellant_mass
-            
-            # Get liquid propellant mass  
-            if hasattr(liquid.propellant_mass, '__call__'):
-                liquid_mass = liquid.propellant_mass(t)
-            else:
-                liquid_mass = liquid.propellant_mass
-            
-            # Get liquid center of mass from wrapped function if it exists
-            if hasattr(liquid, '__dict__') and 'center_of_propellant_mass' in liquid.__dict__:
-                liquid_com_func = liquid.__dict__['center_of_propellant_mass']
-                liquid_com = liquid_com_func(t) if hasattr(liquid_com_func, '__call__') else liquid_com_func
-            else:
-                # Fallback to the property
-                if hasattr(liquid.center_of_propellant_mass, '__call__'):
-                    liquid_com = liquid.center_of_propellant_mass(t)
+            try:
+                # Get solid propellant mass and center of mass
+                if hasattr(solid.propellant_mass, '__call__'):
+                    solid_mass = solid.propellant_mass(t)
                 else:
-                    liquid_com = liquid.center_of_propellant_mass
-            
-            # Compute mass balance
-            if not (np.isfinite(solid_mass) and np.isfinite(solid_com) and 
-                    np.isfinite(liquid_mass) and np.isfinite(liquid_com)):
-                return fallback_position
+                    solid_mass = solid.propellant_mass
+                    
+                if hasattr(solid.center_of_propellant_mass, '__call__'):
+                    solid_com = solid.center_of_propellant_mass(t)
+                else:
+                    solid_com = solid.center_of_propellant_mass
                 
-            mass_balance = solid_mass * solid_com + liquid_mass * liquid_com
-            total_mass = solid_mass + liquid_mass
-            
-            # Safe division with fallback
-            if total_mass == 0 or not np.isfinite(total_mass):
-                return fallback_position
-            result = mass_balance / total_mass
-            return result if np.isfinite(result) else fallback_position
+                # Get liquid propellant mass  
+                if hasattr(liquid.propellant_mass, '__call__'):
+                    liquid_mass = liquid.propellant_mass(t)
+                else:
+                    liquid_mass = liquid.propellant_mass
+                
+                # Get liquid center of mass from wrapped function if it exists
+                if hasattr(liquid, '__dict__') and 'center_of_propellant_mass' in liquid.__dict__:
+                    liquid_com_func = liquid.__dict__['center_of_propellant_mass']
+                    liquid_com = liquid_com_func(t) if hasattr(liquid_com_func, '__call__') else liquid_com_func
+                else:
+                    # Fallback to the property
+                    if hasattr(liquid.center_of_propellant_mass, '__call__'):
+                        liquid_com = liquid.center_of_propellant_mass(t)
+                    else:
+                        liquid_com = liquid.center_of_propellant_mass
+                
+                # Convert to real scalar if complex (for complex step differentiation)
+                if isinstance(solid_mass, complex):
+                    solid_mass = solid_mass.real
+                if isinstance(solid_com, complex):
+                    solid_com = solid_com.real
+                if isinstance(liquid_mass, complex):
+                    liquid_mass = liquid_mass.real
+                if isinstance(liquid_com, complex):
+                    liquid_com = liquid_com.real
+                
+                # Check validity
+                if not (solid_mass is not None and solid_com is not None and
+                        liquid_mass is not None and liquid_com is not None and
+                        np.isfinite(solid_mass) and np.isfinite(solid_com) and 
+                        np.isfinite(liquid_mass) and np.isfinite(liquid_com)):
+                    return float(fallback_position)
+                    
+                mass_balance = float(solid_mass) * float(solid_com) + float(liquid_mass) * float(liquid_com)
+                total_mass = float(solid_mass) + float(liquid_mass)
+                
+                # Safe division with fallback
+                if total_mass == 0 or not np.isfinite(total_mass) or not np.isfinite(mass_balance):
+                    return float(fallback_position)
+                    
+                result = mass_balance / total_mass
+                
+                # Ensure we return a real scalar
+                if isinstance(result, complex):
+                    result = result.real
+                    
+                return float(result) if np.isfinite(result) else float(fallback_position)
+                
+            except (TypeError, ValueError, AttributeError, ZeroDivisionError):
+                # Return fallback if any evaluation fails
+                return float(fallback_position)
             
         return Function(compute_center_of_mass)
     def create_object(self):
