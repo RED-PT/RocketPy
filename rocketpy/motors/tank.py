@@ -171,6 +171,54 @@ class Tank(ABC):
         self._flux_time = tuple_handler(flux_time)
 
     @property
+    def flux_start_time(self):
+        """Returns the start time of the tank flux.
+
+        Returns
+        -------
+        float
+            Start time of the tank flux in seconds.
+        """
+        return self._flux_time[0]
+
+    @flux_start_time.setter
+    def flux_start_time(self, flux_start_time):
+        """Sets the start time of the tank flux.
+
+        Parameters
+        ----------
+        flux_start_time : float
+            Start time of the tank flux in seconds.
+        """
+        start_time = flux_start_time
+        stop_time = self._flux_time[1]
+        self._flux_time = (start_time, stop_time)
+
+    @property
+    def flux_stop_time(self):
+        """Returns the stop time of the tank flux.
+
+        Returns
+        -------
+        float
+            Stop time of the tank flux in seconds.
+        """
+        return self._flux_time[1]
+
+    @flux_stop_time.setter
+    def flux_stop_time(self, flux_stop_time):
+        """Sets the stop time of the tank flux.
+
+        Parameters
+        ----------
+        flux_stop_time : float
+            Stop time of the tank flux in seconds.
+        """
+        start_time = self._flux_time[0]
+        stop_time = flux_stop_time
+        self._flux_time = (start_time, stop_time)
+
+    @property
     def temperature(self):
         """Returns the temperature of the tank as a function of time.
 

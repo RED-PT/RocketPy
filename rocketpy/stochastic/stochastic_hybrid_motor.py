@@ -3,6 +3,7 @@ from .stochastic_motor_model import StochasticMotorModel
 from .stochastic_tank import StochasticMassFlowRateBasedTank
 from random import choice
 from rocketpy.mathutils.vector_matrix import Vector
+from rocketpy.mathutils.function import Function
 
 
 class StochasticHybridMotor(StochasticMotorModel):
@@ -65,6 +66,26 @@ class StochasticHybridMotor(StochasticMotorModel):
             coordinate_system_orientation=None
         )
     
+    def dict_generator(self):
+        """Special generator for the hybrid motor class that yields a dictionary
+        with the randomly generated input arguments. This overrides the base
+        dict_generator to exclude nested stochastic tank objects from being
+        stored in last_rnd_dict, preventing JSON serialization issues.
+
+        Yields
+        ------
+        dict
+            Dictionary with the randomly generated input arguments.
+        """
+        generated_dict = next(super().dict_generator())
+        # Replace tanks list with empty list to avoid storing StochasticTank objects
+        generated_dict["tanks"] = []
+        # Also clear the internal components map to avoid storing stochastic objects
+        if "_StochasticHybridMotor__components_map" in generated_dict:
+            generated_dict["_StochasticHybridMotor__components_map"] = {}
+        self.last_rnd_dict = generated_dict
+        yield generated_dict
+    
     def create_object(self):
 
         generated_dict = next(self.dict_generator())
@@ -108,6 +129,141 @@ class StochasticHybridMotor(StochasticMotorModel):
             tank_obj = tank_entry["tank"]
             tank, position_rnd = self._create_tank(tank_obj)
             hybrid_motor.add_tank(tank, position_rnd)
+
+        # Force recalculation of liquid motor's center_of_propellant_mass
+        # by invalidating any cached versions so it gets recomputed with tanks
+        if hasattr(hybrid_motor.liquid, '__dict__'):
+            hybrid_motor.liquid.__dict__.pop('center_of_propellant_mass', None)
+
+        # Wrap the liquid motor's center_of_propellant_mass to handle Function arithmetic
+        def liquid_center_of_propellant_mass_wrapper(t=None):
+            """Wrapper for liquid motor center of propellant mass that handles time arguments."""
+            liquid = hybrid_motor.liquid
+            total_mass = 0
+            mass_balance = 0
+            
+            for positioned_tank in liquid.positioned_tanks:
+                tank = positioned_tank.get("tank")
+                tank_position = positioned_tank.get("position")
+                
+                if tank_position is None:
+                    tank_position = 0
+                
+                # Get mass and center of mass, handling both Function and scalar types
+                if hasattr(tank.fluid_mass, 'get_value_opt'):
+                    tank_mass = tank.fluid_mass.get_value_opt(t) if t is not None else tank.fluid_mass.get_value_opt(0)
+                else:
+                    tank_mass = tank.fluid_mass
+                
+                if hasattr(tank.center_of_mass, 'get_value_opt'):
+                    tank_com = tank.center_of_mass.get_value_opt(t) if t is not None else tank.center_of_mass.get_value_opt(0)
+                else:
+                    tank_com = tank.center_of_mass
+                    
+                if tank_mass is None:
+                    tank_mass = 0
+                if tank_com is None:
+                    tank_com = 0
+                    
+                total_mass += tank_mass
+                mass_balance += tank_mass * (tank_position + tank_com)
+            
+            return mass_balance / total_mass if total_mass > 0 else 0
+        
+        # Replace the liquid motor's center_of_propellant_mass with a Function wrapper
+        hybrid_motor.liquid.__dict__['center_of_propellant_mass'] = Function(
+            liquid_center_of_propellant_mass_wrapper,
+            inputs="Time (s)",
+            outputs="center of mass (m)"
+        )
+
+        # Wrap the HybridMotor's center_of_propellant_mass to handle Function arithmetic
+        def hybrid_center_of_propellant_mass_wrapper(t=None):
+            """Wrapper for hybrid motor center of propellant mass that handles time arguments."""
+            solid = hybrid_motor.solid
+            liquid = hybrid_motor.liquid
+            
+            # Get solid propellant mass and center of mass
+            if hasattr(solid.propellant_mass, 'get_value_opt'):
+                solid_mass = solid.propellant_mass.get_value_opt(t) if t is not None else solid.propellant_mass.get_value_opt(0)
+            else:
+                solid_mass = solid.propellant_mass
+                
+            if hasattr(solid.center_of_propellant_mass, 'get_value_opt'):
+                solid_com = solid.center_of_propellant_mass.get_value_opt(t) if t is not None else solid.center_of_propellant_mass.get_value_opt(0)
+            else:
+                solid_com = solid.center_of_propellant_mass
+            
+            # Get liquid propellant mass
+            if hasattr(liquid.propellant_mass, 'get_value_opt'):
+                liquid_mass = liquid.propellant_mass.get_value_opt(t) if t is not None else liquid.propellant_mass.get_value_opt(0)
+            else:
+                liquid_mass = liquid.propellant_mass
+            
+            # Get liquid center of propellant mass using our wrapper
+            if hasattr(liquid, '__dict__') and 'center_of_propellant_mass' in liquid.__dict__:
+                liquid_com = liquid.__dict__['center_of_propellant_mass'].get_value_opt(t) if t is not None else liquid.__dict__['center_of_propellant_mass'].get_value_opt(0)
+            else:
+                liquid_com = 0
+            
+            # Get total propellant mass
+            if hasattr(hybrid_motor.propellant_mass, 'get_value_opt'):
+                total_mass = hybrid_motor.propellant_mass.get_value_opt(t) if t is not None else hybrid_motor.propellant_mass.get_value_opt(0)
+            else:
+                total_mass = hybrid_motor.propellant_mass
+            
+            mass_balance = solid_mass * solid_com + liquid_mass * liquid_com
+            return mass_balance / total_mass if total_mass > 0 else 0
+        
+        # Replace the hybrid motor's center_of_propellant_mass with a Function wrapper
+        hybrid_motor.__dict__['center_of_propellant_mass'] = Function(
+            hybrid_center_of_propellant_mass_wrapper,
+            inputs="Time (s)",
+            outputs="center of mass (m)"
+        )
+
+        # Wrap all funcify_method decorated methods on the liquid motor to handle
+        # Function arithmetic properly. This includes inertia tensors and other properties.
+        def _create_liquid_motor_wrapper(motor_instance, method_name, original_method):
+            """Create a wrapper for a liquid motor method that handles time arguments."""
+            def wrapper(t=None):
+                """Wrapper that safely calls the original method and handles Function objects."""
+                try:
+                    # Try calling the original method
+                    result = original_method(motor_instance)
+                    
+                    # If result is a Function, evaluate it at time t
+                    if hasattr(result, 'get_value_opt'):
+                        return result.get_value_opt(t) if t is not None else result.get_value_opt(0)
+                    return result
+                except (TypeError, AttributeError):
+                    # Fallback: return None or 0
+                    return 0
+            
+            return wrapper
+
+        # List of methods to wrap on the liquid motor
+        liquid_motor_methods_to_wrap = [
+            'propellant_I_11',
+            'propellant_I_22', 
+            'propellant_I_33',
+            'propellant_I_12',
+            'propellant_I_13',
+            'propellant_I_23',
+        ]
+        
+        for method_name in liquid_motor_methods_to_wrap:
+            if hasattr(hybrid_motor.liquid.__class__, method_name):
+                original_method = getattr(hybrid_motor.liquid.__class__, method_name)
+                # Get the underlying function from the funcify_method descriptor
+                if hasattr(original_method, 'func'):
+                    orig_func = original_method.func
+                    wrapper_func = _create_liquid_motor_wrapper(hybrid_motor.liquid, method_name, orig_func)
+                    hybrid_motor.liquid.__dict__[method_name] = Function(
+                        wrapper_func,
+                        inputs="Time (s)",
+                        outputs="Inertia (kg m²)"
+                    )
 
         # Sanitize funcified methods on the created motor and its subcomponents
         # so that their Function sources robustly accept a time argument.
@@ -178,10 +334,11 @@ class StochasticHybridMotor(StochasticMotorModel):
             _sanitize_instance_funcs(hybrid_motor)
             _sanitize_instance_funcs(getattr(hybrid_motor, "liquid", None))
             _sanitize_instance_funcs(getattr(hybrid_motor, "solid", None))
-        except Exception:
+        except Exception as e:
             # Don't let the sanitizer crash stochastic creation; it's a
             # best-effort compatibility layer.
-            pass
+            import warnings
+            warnings.warn(f"Sanitizer failed during stochastic motor creation: {e}")
 
         return hybrid_motor
 
